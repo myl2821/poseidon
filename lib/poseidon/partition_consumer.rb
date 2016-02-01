@@ -72,7 +72,7 @@ module Poseidon
       @host = host
       @port = port
 
-      handle_options(options)
+      handle_options(options.dup)
 
       @connection = Connection.new(host, port, client_id, @socket_timeout_ms)
       @topic = topic
