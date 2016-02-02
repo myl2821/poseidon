@@ -56,7 +56,7 @@ module Poseidon
 
     def available_partitions
       @available_partitions ||= struct.partitions.select do |partition|
-        partition.error == 0 && partition.leader != -1
+        (partition.error == Errors::NO_ERROR_CODE || Errors::ERROR_CODES[partition.error] == Errors::ReplicaNotAvailable) && partition.leader != -1
       end
     end
 
