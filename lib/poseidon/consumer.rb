@@ -103,10 +103,10 @@ module Poseidon
     end
 
     def fetch_cluster_metadata
-      broker_pool = BrokerPool.new(client_id, seed_brokers)
+      broker_pool = BrokerPool.new(client_id, seed_brokers, @options[:socket_timeout_ms] || 10_000)
 
       cluster_metadata = ClusterMetadata.new
-      cluster_metadata.update(broker_pool.fetch_metadata([topic]))
+      cluster_metadata.update(broker_pool.fetch_metadata([topic].to_set))
       cluster_metadata
     end
   end
