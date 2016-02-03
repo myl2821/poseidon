@@ -7,7 +7,7 @@ module Poseidon
   #
   # ## Example
   #
-  # consumer = Poseidon::Consumer.new("test_client", %w(localhost:9092), "test_topic", :earliest_offset)
+  # consumer = Poseidon::Consumer.new("test_client", %w(localhost:9092), ["test_topic1", "test_topic2"], :earliest_offset)
   # first_five = consumer.take(5)
   # # Consume indefinitely
   # consumer.each { |message| puts message.value }
@@ -16,7 +16,7 @@ module Poseidon
   class Consumer
     include Enumerable
 
-    attr_reader :client_id, :seed_brokers, :topic, :offset, :options
+    attr_reader :client_id, :seed_brokers, :topics, :offset, :options
 
     # Create a Consumer that reads from all the partitions of a topic at once
     #
@@ -43,10 +43,10 @@ module Poseidon
     # @option options [:min_bytes] Smallest amount of data the server should send us.
     #   Default: 0 (Send us data as soon as it is ready)
     #
-    def initialize(client_id, seed_brokers, topic, offset, options = {})
+    def initialize(client_id, seed_brokers, topics, offset, options = {})
       @client_id = client_id
       @seed_brokers = seed_brokers
-      @topic = topic
+      @topics = [topics].flatten
       @offset = offset
       @options = options
 
@@ -61,7 +61,6 @@ module Poseidon
     # @api public
     def each
       @partition_consumers ||= create_partition_consumers
-
       begin
         threads = @partition_consumers.map do |partition_consumer|
           Thread.new(Thread.current) do |parent|
@@ -94,19 +93,21 @@ module Poseidon
     def create_partition_consumers
       cluster_metadata = fetch_cluster_metadata
 
-      topic_metadata = cluster_metadata.topic_metadata[topic]
-      (0...topic_metadata.partition_count).map do |partition|
-        lead_broker = cluster_metadata.lead_broker_for_partition(topic, partition)
-
-        PartitionConsumer.new(client_id, lead_broker.host, lead_broker.port, topic, partition, offset, options)
+      partition_cosumers = topics.map do |topic|
+        topic_metadata = cluster_metadata.topic_metadata[topic]
+        (0...topic_metadata.partition_count).map do |partition|
+          lead_broker = cluster_metadata.lead_broker_for_partition(topic, partition)
+          PartitionConsumer.new(client_id, lead_broker.host, lead_broker.port, topic, partition, offset, options)
+        end
       end
+      partition_cosumers.flatten
     end
 
     def fetch_cluster_metadata
       broker_pool = BrokerPool.new(client_id, seed_brokers, @options[:socket_timeout_ms] || 10_000)
 
       cluster_metadata = ClusterMetadata.new
-      cluster_metadata.update(broker_pool.fetch_metadata([topic].to_set))
+      cluster_metadata.update(broker_pool.fetch_metadata(topics.to_set))
       cluster_metadata
     end
   end
